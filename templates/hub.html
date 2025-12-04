@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-4xl mx-auto p-6 space-y-6">
+
+  <div class="pixel-box p-8">
+    <h1 class="text-3xl font-bold mb-2">欢迎回来！</h1>
+    <p class="text-sm text-gray-600">
+      这里是你的个人数据中心，我小ka 在这儿帮你记吃、记练，还顺手当厨娘和小秘书。
+    </p>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+    <!-- 减脂面板 -->
+    <a href="/diet" class="pixel-box p-6 hover:bg-green-50 block">
+      <div class="flex items-center gap-4">
+        <div class="text-4xl">🥑</div>
+        <div>
+          <h2 class="text-2xl font-bold mb-1">小ka 减脂面板</h2>
+          <p class="text-xs text-gray-600">
+            记录每天的吃喝和体重，我帮你算热量、看趋势、写碎嘴报告。
+          </p>
+        </div>
+      </div>
+    </a>
+
+    <!-- 厨房 -->
+    <a href="/cook" class="pixel-box p-6 hover:bg-yellow-50 block">
+      <div class="flex items-center gap-4">
+        <div class="text-4xl">🍳</div>
+        <div>
+          <h2 class="text-2xl font-bold mb-1">小ka 厨房</h2>
+          <p class="text-xs text-gray-600">
+            接入 HowToCook，搜菜谱、看步骤、合成菜，还有我在线唠嗑当帮厨。
+          </p>
+        </div>
+      </div>
+    </a>
+
+    <!-- 知识仓库 / AFFiNE -->
+    <a href="/brain" class="pixel-box p-6 hover:bg-blue-50 block">
+      <div class="flex items-center gap-4">
+        <div class="text-4xl">📚</div>
+        <div>
+          <h2 class="text-2xl font-bold mb-1">小ka 知识仓库</h2>
+          <p class="text-xs text-gray-600">
+            用 AFFiNE 做笔记、项目看板和生活备忘，我帮你把减脂和做饭的信息都串起来。
+          </p>
+        </div>
+      </div>
+    </a>
+
+  </div>
+</div>
+{% endblock %}

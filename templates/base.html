@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>{{ title }} - Pixel Life</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap" rel="stylesheet">
+    <script src="https://cdn.bootcdn.net/ajax/libs/vue/3.2.47/vue.global.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/axios/1.3.4/axios.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.4.1/echarts.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        :root {
+            --pixel-bg: #fdf6e3;
+            --pixel-border: #433422;
+            --pixel-shadow: #c2b280;
+        }
+        body {
+            background-color: var(--pixel-bg);
+            font-family: "ZCOOL KuaiLe", cursive, sans-serif;
+            color: var(--pixel-border);
+        }
+        [v-cloak] { display: none; }
+
+        /* 像素边框通用样式 */
+        .pixel-box {
+            background: white;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0px var(--pixel-shadow);
+            position: relative;
+        }
+        .pixel-btn {
+            background: #ffcc00;
+            border: 2px solid var(--pixel-border);
+            box-shadow: 4px 4px 0px var(--pixel-border);
+            transition: all 0.1s;
+            font-weight: bold;
+        }
+        .pixel-btn:active {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0px var(--pixel-border);
+        }
+        .pixel-btn.green { background: #8cd612; color: white; text-shadow: 2px 2px 0 #4f8500; }
+        .pixel-btn.blue  { background: #00ccff; color: white; text-shadow: 2px 2px 0 #006680; }
+
+        /* 侧边栏 */
+        .sidebar {
+            background: #2d2d2d;
+            border-right: 4px solid var(--pixel-border);
+            transition: transform 0.3s;
+        }
+        .sidebar a:hover { background: #444; }
+
+        /* 输入框像素化 */
+        input, textarea {
+            border: 2px solid var(--pixel-border);
+            background: #fff;
+            box-shadow: inset 4px 4px 0px #eee;
+        }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden">
+
+    <div id="sidebar" class="sidebar fixed inset-y-0 left-0 w-64 text-white z-50 md:relative transform -translate-x-full md:translate-x-0 flex flex-col">
+        <div class="p-6 text-2xl border-b-4 border-gray-600 flex justify-between items-center bg-gray-800">
+            <span>👾 My Hub</span>
+            <button onclick="toggleSidebar()" class="md:hidden">✕</button>
+        </div>
+
+        <nav class="flex-1 p-4 space-y-4">
+            <a href="/" class="block p-3 border-2 border-transparent hover:border-white border-dashed rounded">
+                🏠 小ka 的基地
+            </a>
+
+            <a href="/diet" class="block p-3 border-2 border-transparent hover:border-green-400 border-dashed rounded text-green-300">
+                ❤️ 小ka 减脂面板
+            </a>
+
+            <a href="/cook" class="block p-3 border-2 border-transparent hover:border-yellow-400 border-dashed rounded text-yellow-300">
+                🍳 小ka 厨房
+            </a>
+
+            <!-- 新增：知识仓库（AFFiNE） -->
+            <a href="/brain" class="block p-3 border-2 border-transparent hover:border-sky-400 border-dashed rounded text-blue-300">
+                📚 小ka 知识仓库
+            </a>
+        </nav>
+
+        <div class="p-4 text-xs text-gray-500 text-center">
+            Insert Coin to Start
+        </div>
+    </div>
+
+    <div class="flex-1 flex flex-col h-screen overflow-hidden relative">
+        <div class="md:hidden bg-yellow-400 p-4 border-b-4 border-black flex items-center justify-between">
+            <button onclick="toggleSidebar()" class="text-2xl">☰</button>
+            <span class="font-bold">{{ title }}</span>
+        </div>
+
+        <main class="flex-1 overflow-y-auto p-4 md:p-8 bg-[url('https://www.transparenttextures.com/patterns/pixel-weave.png')]">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <script>
+        function toggleSidebar() {
+            const el = document.getElementById('sidebar');
+            el.classList.toggle('-translate-x-full');
+        }
+    </script>
+</body>
+</html>

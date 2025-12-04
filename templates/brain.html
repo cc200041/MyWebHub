@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-6xl mx-auto h-full flex flex-col gap-4">
+
+  <!-- 上面一块提示卡片 -->
+  <div class="pixel-box p-6 bg-sky-50/80">
+    <h1 class="text-2xl font-bold mb-2">小ka 知识仓库</h1>
+    <p class="text-sm text-gray-700 mb-1">
+      你在这里写的东西都存在本地数据目录里，小ka帮你做自动整理和总结。
+    </p>
+    <p class="text-xs text-gray-500">
+      测试一下好不好用
+    </p>
+  </div>
+
+  <!-- 下方内嵌思源 -->
+  <div class="pixel-box flex-1 p-0 overflow-hidden bg-gray-900/80">
+    <iframe
+      src="{{ siyuan_url }}"
+      class="w-full h-[70vh] md:h-[78vh] border-0 bg-white"
+      referrerpolicy="no-referrer"
+    ></iframe>
+  </div>
+
+</div>
+{% endblock %}

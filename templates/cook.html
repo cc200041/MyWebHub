@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block content %}
+{% raw %}
+<div id="app" v-cloak class="h-full flex flex-col md:flex-row gap-6">
+  <!-- 左：AI 厨师聊天 -->
+  <div class="w-full md:w-80 lg:w-96 pixel-box bg-[#111827] text-white flex flex-col">
+    <div class="p-4 border-b-4 border-black flex items-center justify-between">
+      <div class="text-lg font-bold">小卡大厨</div>
+      <span class="text-xs text-green-300">帮你把家里食材用光光</span>
+    </div>
+    <div class="flex-1 overflow-y-auto p-3 space-y-2 bg-[#020617] text-sm">
+      <div v-for="m in chatLog" :class="m.role === 'ai' ? 'text-left' : 'text-right'">
+        <div class="inline-block px-2 py-1 rounded border-2"
+             :class="m.role === 'ai' ? 'bg-white text-black border-yellow-400' : 'bg-emerald-400 text-black border-emerald-800'">
+          {{ m.text }}
+        </div>
+      </div>
+      <div v-if="isThinking" class="text-xs text-gray-400">AI 正在思考菜谱中...</div>
+    </div>
+    <div class="p-3 border-t-4 border-black bg-[#020617] flex gap-2">
+      <input v-model="chatInput" @keyup.enter="sendChat" class="flex-1 p-2 text-sm text-black"
+             placeholder="例：我有鸡胸肉、西蓝花，想减脂不想吃辣">
+      <button @click="sendChat" class="pixel-btn green px-3 text-sm">发送</button>
+    </div>
+  </div>
+
+  <!-- 右侧：推荐 + 详情 -->
+  <div class="flex-1 flex flex-col gap-4">
+    <!-- 推荐 & 搜索 -->
+    <div class="pixel-box p-4 flex flex-col gap-3">
+      <div class="flex items-center justify-between mb-1">
+        <h2 class="font-bold text-lg">推荐菜谱</h2>
+        <div class="flex items-center gap-2">
+          <input v-model="searchQ" @input="doSearch" placeholder="搜索菜名 / 关键字..."
+                 class="p-2 text-sm w-48">
+          <button @click="doSearch" class="pixel-btn px-3 text-xs">搜索</button>
+        </div>
+      </div>
+      <div class="max-h-52 overflow-y-auto divide-y divide-dashed divide-gray-300 text-sm">
+        <div v-if="!showList.length" class="py-6 text-center text-gray-400 text-xs">
+          在左边告诉我你有什么，我会在这里给你列菜单～
+        </div>
+        <div v-for="r in showList" :key="r.name"
+             class="py-2 flex items-center justify-between cursor-pointer hover:bg-yellow-50"
+             @click="loadDish(r.name)">
+          <div>
+            <div class="font-bold">{{ r.name }}</div>
+            <div class="text-xs text-gray-500">
+              <span v-if="r.score">匹配度 {{ r.score }}% · </span>
+              <span v-if="parseMissing(r.missing)">{{ parseMissing(r.missing) }}</span>
+            </div>
+          </div>
+          <div class="text-right text-xs">
+            <div v-if="r.exists" class="text-green-600 font-bold">已收录</div>
+            <div v-else class="text-orange-500">新菜谱</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 菜谱详情 -->
+    <div class="flex-1 pixel-box p-6 bg-[#fffaf0] flex flex-col relative">
+      <div v-if="curDish" class="flex-1 flex flex-col overflow-hidden">
+        <div class="border-b-4 border-dashed border-gray-300 pb-4 mb-4 flex justify-between items-start">
+          <div>
+            <h1 class="text-3xl mb-2 text-[#5a3e1b]">{{ curDish.name }}</h1>
+            <div class="flex flex-wrap gap-2 text-xs text-gray-500">
+              <span v-if="curDish.calories" class="bg-red-500 text-white px-2 border-2 border-black">
+                HP +{{ curDish.calories }}
+              </span>
+              <span v-for="t in parseTags(curDish.tags)"
+                    class="px-2 border border-dashed border-gray-500 rounded-full">
+                #{{ t }}
+              </span>
+            </div>
+          </div>
+          <div class="flex flex-col gap-2">
+            <button class="pixel-btn text-xs px-2" @click="genToken">生成口令</button>
+          </div>
+        </div>
+        <div class="flex-1 overflow-y-auto prose prose-stone max-w-none font-sans" v-html="curDish.html"></div>
+      </div>
+      <div v-else class="flex-1 flex flex-col items-center justify-center opacity-30">
+        <div class="text-7xl">📖</div>
+        <p class="mt-4 text-sm">先在左边和小ka大厨聊聊，或者用右上角搜索菜名。</p>
+      </div>
+
+      <!-- 右下角小问答 -->
+      <div v-if="curDish" class="absolute bottom-4 right-4 w-72 pixel-box bg-white flex flex-col text-xs max-h-80">
+        <div class="bg-blue-500 text-white p-2 font-bold">菜谱小问答</div>
+        <div class="flex-1 overflow-y-auto p-2 bg-white">
+          <div v-if="!recipeChatLog.length" class="text-gray-400 text-xs mb-2">
+            比如问：“这道菜怎么做得更低脂？”、“可以替换什么食材？”。
+          </div>
+          <div v-for="m in recipeChatLog" class="mb-2"
+               :class="m.role === 'ai' ? 'text-left' : 'text-right'">
+            <div class="inline-block px-2 py-1 border-2"
+                 :class="m.role === 'ai' ? 'bg-gray-100' : 'bg-blue-100'">
+              {{ m.text }}
+            </div>
+          </div>
+        </div>
+        <div class="p-2 border-t-2 border-black flex gap-1">
+          <input v-model="recipeChatInput" @keyup.enter="askRecipe"
+                 class="flex-1 p-1 border border-black text-xs"
+                 placeholder="针对当前菜谱提问...">
+          <button @click="askRecipe" class="pixel-btn blue px-2 text-xs">问</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endraw %}
+<script src="/static/js/cook.js"></script>
+{% endblock %}
