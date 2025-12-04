@@ -1,125 +1,125 @@
-# 文件: core/ai.py （改成使用阿里云通义千问 Qwen）
+# 文件：core/ai.py
+# 说明：去掉本地 127.0.0.1 代理，在 Render 等云环境可以正常访问 Gemini
+
 import requests
 import json
-import config
 import base64
+import config
 import re
 
-# DashScope 文本生成接口
-API_URL = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation"
+# Google Gemini API 地址
+API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
-# 这里优先使用 QWEN_API_KEY，如果没有，就回退到 GOOGLE_API_KEY
-API_KEY = getattr(config, "QWEN_API_KEY", None) or getattr(config, "GOOGLE_API_KEY", "")
+# 不再强制走本地代理，云服务器上没有 127.0.0.1:7897
+PROXIES = None  # 本地如果一定想走代理，可以改成 {"http": "...", "https": "..."}
 
-
-def _call_qwen(messages, temperature=0.7, max_tokens=1024):
-    """
-    调用千问文本接口。
-    messages: [{"role": "system"|"user"|"assistant", "content": "xxx"}, ...]
-    返回字符串（模型回复），出错时返回 None
-    """
-    if not API_KEY:
+def _call_gemini_api(payload: dict):
+    """底层请求 Gemini 的封装，出错时返回 None，并在日志中打印错误。"""
+    try:
+        resp = requests.post(
+            API_URL,
+            params={"key": config.GOOGLE_API_KEY},
+            json=payload,
+            timeout=30,
+            proxies=PROXIES,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        # 如果 Gemini 返回的是错误结构，也打印出来
+        if isinstance(data, dict) and data.get("error"):
+            print("[Gemini] API error:", data)
+            return None
+        return data
+    except Exception as e:
+        print("[Gemini] request failed:", repr(e))
         return None
 
-    headers = {
-        "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json",
-    }
 
-    payload = {
-        "model": "qwen-plus",  # 也可以换成 qwen-max / qwen-turbo，看你账户额度
-        "input": {
-            "messages": messages
-        },
-        "parameters": {
-            "result_format": "message",  # 返回 message 结构，方便取 content
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-        }
-    }
+def chat_with_text(prompt: str) -> str:
+    """普通对话：输入一段文字，返回一段文字。"""
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    result = _call_gemini_api(payload)
+    if not result:
+        return "小ka 这边连不上 AI 服务了，稍后再试试吧～"
 
     try:
-        resp = requests.post(API_URL, headers=headers, json=payload, timeout=30)
-        if resp.status_code != 200:
-            return None
-        data = resp.json()
-        # 官方返回：output.choices[0].message.content
-        return (
-            data.get("output", {})
-                .get("choices", [{}])[0]
-                .get("message", {})
-                .get("content", "")
-        )
-    except Exception:
-        return None
+        return result["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception as e:
+        print("[Gemini] parse text error:", repr(e), "resp=", result)
+        return "AI 返回的内容我解析失败了，先用右边搜索框顶一顶～"
 
 
-# -------- 通用 JSON 解析工具 --------
-
-def parse_json(text):
-    """
-    从模型返回的字符串里，尽量把 JSON 抠出来并转成 dict/list。
-    """
-    if not text:
-        return None
-
-    # 1. 先找 ```json ... ``` 这种包裹
-    code_block = re.search(r"```json(.*?)```", text, re.S | re.I)
-    if code_block:
-        text = code_block.group(1)
-
-    # 2. 再找第一个 { 或 [ 开头 的 JSON 片段
-    m = re.search(r"([\{\[][\s\S]*[\}\]])", text)
-    if m:
-        text = m.group(1)
-
+def _try_parse_json(text: str):
+    """尽量从模型输出里抠出 JSON。"""
     try:
         return json.loads(text)
     except Exception:
-        return None
+        pass
 
-
-# ========= 对外暴露的三个函数 =========
-
-def chat_with_text(prompt: str) -> str:
-    """
-    普通聊天 / 解释说明，用于：
-      - 饮食分析
-      - 厨房问答等
-    """
-    msg = [
-        {
-            "role": "system",
-            "content": "你是一个说话可爱、会认真解释的健康与美食助手“小ka”，回答要简洁、口语化，用中文。"
-        },
-        {"role": "user", "content": prompt},
-    ]
-    result = _call_qwen(msg, temperature=0.6, max_tokens=800)
-    return result or "小ka这边网络有点问题，稍后再试一下叭～"
+    try:
+        m = re.search(r"\{.*\}", text, re.S)
+        if m:
+            return json.loads(m.group(0))
+    except Exception:
+        pass
+    return None
 
 
 def generate_json(prompt: str):
     """
-    让模型严格输出 JSON，给做饭 / 记录热量用。
+    让模型直接返回 JSON（用于做饭/减脂这些功能）。
+    返回 Python dict / list，失败则返回 None。
     """
-    msg = [
-        {
-            "role": "system",
-            "content": (
-                "你是一个只会输出 JSON 的助手，必须返回合法 JSON，不能带任何解释文字。"
-                "如果用户问题无法用结构化表示，就用一个字段 reason 来说明原因。"
-            ),
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "response_mime_type": "application/json",
         },
-        {"role": "user", "content": prompt},
-    ]
-    result = _call_qwen(msg, temperature=0.2, max_tokens=1200)
-    return parse_json(result)
+    }
+    result = _call_gemini_api(payload)
+    if not result:
+        return None
+
+    try:
+        txt = result["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception as e:
+        print("[Gemini] no text in JSON response:", repr(e), "resp=", result)
+        return None
+
+    js = _try_parse_json(txt)
+    if js is None:
+        print("[Gemini] JSON parse failed, raw text:", txt)
+    return js
 
 
-def analyze_image(img_bytes: bytes, prompt: str):
+def analyze_image(image_bytes: bytes, prompt: str):
     """
-    目前先占位：千问的多模态接口和文本接口不同，这里暂时只返回 None。
-    前端那边已经写了 “ai.analyze_image(...) or {}”，所以不会炸，只是提示识别失败。
-    以后想接入图片识别，可以再单独换成多模态 API。
+    图像 + 文本的 JSON 分析（给减脂 app 用的多模态）。
+    返回 dict / list，失败返回 None。
     """
-    return None
+    b64_data = base64.b64encode(image_bytes).decode("utf-8")
+    payload = {
+        "contents": [{
+            "parts": [
+                {"text": prompt},
+                {"inline_data": {"mime_type": "image/jpeg", "data": b64_data}},
+            ]
+        }],
+        "generationConfig": {
+            "response_mime_type": "application/json",
+        },
+    }
+    result = _call_gemini_api(payload)
+    if not result:
+        return None
+
+    try:
+        txt = result["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception as e:
+        print("[Gemini] image response no text:", repr(e), "resp=", result)
+        return None
+
+    js = _try_parse_json(txt)
+    if js is None:
+        print("[Gemini] image JSON parse failed, raw text:", txt)
+    return js
